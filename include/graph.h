@@ -35,4 +35,10 @@ int graph_add_edge(
 
 int graph_build(Graph *graph);
 
+size_t graph_search(
+    const Graph *graph,
+    const Vector *query,
+    size_t entry_point
+);
+
 #endif

@@ -206,3 +206,64 @@ int graph_build(Graph *graph)
 
     return 0;
 }
+
+size_t graph_search(
+    const Graph *graph,
+    const Vector *query,
+    size_t entry_point
+)
+{
+    if (
+        graph == NULL ||
+        graph->nodes == NULL ||
+        graph->vectors == NULL ||
+        query == NULL
+    ) {
+        return 0;
+    }
+
+    if (entry_point >= graph->size) {
+        return 0;
+    }
+
+    size_t current = entry_point;
+
+    float current_score =
+        cosine_similarity(
+            query,
+            &graph->vectors[current]
+        );
+
+    while (1) {
+        size_t best = current;
+        float best_score = current_score;
+
+        const GraphNode *node =
+            &graph->nodes[current];
+
+        for (size_t i = 0; i < node->count; i++) {
+            size_t neighbor =
+                node->neighbors[i];
+
+            float score =
+                cosine_similarity(
+                    query,
+                    &graph->vectors[neighbor]
+                );
+
+            if (score > best_score) {
+                best = neighbor;
+                best_score = score;
+            }
+        }
+
+        if (best == current) {
+            break;
+        }
+
+        current = best;
+        current_score = best_score;
+    }
+
+    return current;
+}
