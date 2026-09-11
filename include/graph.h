@@ -33,5 +33,6 @@ int graph_add_edge(
     size_t to
 );
 
+int graph_build(Graph *graph);
 
 #endif
