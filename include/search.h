@@ -18,4 +18,12 @@ size_t brute_force_search(
     size_t k
 );
 
+size_t top_k_search(
+    const Vector *query,
+    const Vector *vectors,
+    size_t vector_count,
+    SearchResult *results,
+    size_t k
+);
+
 #endif
