@@ -442,3 +442,252 @@ size_t graph_search_k(
 
     return result_count;
 }
+
+size_t graph_search_ef(
+    const Graph *graph,
+    const Vector *query,
+    size_t entry_point,
+    size_t ef,
+    size_t *results,
+    size_t k
+)
+{
+    if (
+        graph == NULL ||
+        graph->nodes == NULL ||
+        graph->vectors == NULL ||
+        query == NULL ||
+        results == NULL ||
+        ef == 0 ||
+        k == 0 ||
+        entry_point >= graph->size
+    ) {
+        return 0;
+    }
+
+    if (ef > graph->size) {
+        ef = graph->size;
+    }
+
+    if (k > ef) {
+        k = ef;
+    }
+
+    size_t *visited =
+        calloc(graph->size, sizeof(size_t));
+
+    size_t *candidates =
+        malloc(graph->size * sizeof(size_t));
+
+    size_t *best =
+        malloc(graph->size * sizeof(size_t));
+
+    if (
+        visited == NULL ||
+        candidates == NULL ||
+        best == NULL
+    ) {
+        free(visited);
+        free(candidates);
+        free(best);
+
+        return 0;
+    }
+
+    size_t candidate_count = 1;
+    size_t best_count = 1;
+
+    candidates[0] = entry_point;
+    best[0] = entry_point;
+
+    visited[entry_point] = 1;
+
+    while (candidate_count > 0) {
+        /*
+         * Find the best candidate to expand.
+         */
+        size_t best_position = 0;
+
+        float best_score =
+            cosine_similarity(
+                query,
+                &graph->vectors[candidates[0]]
+            );
+
+        for (size_t i = 1; i < candidate_count; i++) {
+            float score =
+                cosine_similarity(
+                    query,
+                    &graph->vectors[candidates[i]]
+                );
+
+            if (score > best_score) {
+                best_position = i;
+                best_score = score;
+            }
+        }
+
+        size_t current =
+            candidates[best_position];
+
+        /*
+         * Remove current from candidate pool.
+         */
+        for (
+            size_t i = best_position + 1;
+            i < candidate_count;
+            i++
+        ) {
+            candidates[i - 1] = candidates[i];
+        }
+
+        candidate_count--;
+
+        /*
+         * Expand current node.
+         */
+        const GraphNode *node =
+            &graph->nodes[current];
+
+        for (size_t i = 0; i < node->count; i++) {
+            size_t neighbor =
+                node->neighbors[i];
+
+            if (visited[neighbor]) {
+                continue;
+            }
+
+            visited[neighbor] = 1;
+
+            /*
+             * Add to candidate pool.
+             */
+            candidates[candidate_count] =
+                neighbor;
+
+            candidate_count++;
+
+            /*
+             * Add to best pool.
+             */
+            best[best_count] = neighbor;
+            best_count++;
+        }
+
+        /*
+         * Keep candidate pool limited to ef.
+         *
+         * We keep the nodes with the highest
+         * similarity to the query.
+         */
+        while (candidate_count > ef) {
+            size_t worst_position = 0;
+
+            float worst_score =
+                cosine_similarity(
+                    query,
+                    &graph->vectors[candidates[0]]
+                );
+
+            for (size_t i = 1; i < candidate_count; i++) {
+                float score =
+                    cosine_similarity(
+                        query,
+                        &graph->vectors[candidates[i]]
+                    );
+
+                if (score < worst_score) {
+                    worst_position = i;
+                    worst_score = score;
+                }
+            }
+
+            for (
+                size_t i = worst_position + 1;
+                i < candidate_count;
+                i++
+            ) {
+                candidates[i - 1] =
+                    candidates[i];
+            }
+
+            candidate_count--;
+        }
+
+        /*
+         * Keep best pool limited to ef.
+         */
+        while (best_count > ef) {
+            size_t worst_position = 0;
+
+            float worst_score =
+                cosine_similarity(
+                    query,
+                    &graph->vectors[best[0]]
+                );
+
+            for (size_t i = 1; i < best_count; i++) {
+                float score =
+                    cosine_similarity(
+                        query,
+                        &graph->vectors[best[i]]
+                    );
+
+                if (score < worst_score) {
+                    worst_position = i;
+                    worst_score = score;
+                }
+            }
+
+            for (
+                size_t i = worst_position + 1;
+                i < best_count;
+                i++
+            ) {
+                best[i - 1] = best[i];
+            }
+
+            best_count--;
+        }
+    }
+
+    /*
+     * Sort best results by similarity.
+     */
+    for (size_t i = 0; i < best_count; i++) {
+        for (size_t j = i + 1; j < best_count; j++) {
+            float score_i =
+                cosine_similarity(
+                    query,
+                    &graph->vectors[best[i]]
+                );
+
+            float score_j =
+                cosine_similarity(
+                    query,
+                    &graph->vectors[best[j]]
+                );
+
+            if (score_j > score_i) {
+                size_t temp = best[i];
+                best[i] = best[j];
+                best[j] = temp;
+            }
+        }
+    }
+
+    size_t result_count =
+        best_count < k
+            ? best_count
+            : k;
+
+    for (size_t i = 0; i < result_count; i++) {
+        results[i] = best[i];
+    }
+
+    free(visited);
+    free(candidates);
+    free(best);
+
+    return result_count;
+}
