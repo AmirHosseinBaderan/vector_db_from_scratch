@@ -41,4 +41,21 @@ size_t graph_search(
     size_t entry_point
 );
 
+size_t graph_search_k(
+    const Graph *graph,
+    const Vector *query,
+    size_t entry_point,
+    size_t k,
+    size_t *results
+);
+
+size_t graph_search_ef(
+    const Graph *graph,
+    const Vector *query,
+    size_t entry_point,
+    size_t ef,
+    size_t *results,
+    size_t k
+);
+
 #endif

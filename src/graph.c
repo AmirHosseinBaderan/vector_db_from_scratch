@@ -267,3 +267,178 @@ size_t graph_search(
 
     return current;
 }
+
+size_t graph_search_k(
+    const Graph *graph,
+    const Vector *query,
+    size_t entry_point,
+    size_t k,
+    size_t *results
+)
+{
+    if (
+        graph == NULL ||
+        graph->nodes == NULL ||
+        graph->vectors == NULL ||
+        query == NULL ||
+        results == NULL ||
+        k == 0 ||
+        entry_point >= graph->size
+    ) {
+        return 0;
+    }
+
+    if (k > graph->size) {
+        k = graph->size;
+    }
+
+    size_t *visited =
+        calloc(graph->size, sizeof(size_t));
+
+    size_t *candidates =
+        malloc(graph->size * sizeof(size_t));
+
+    if (
+        visited == NULL ||
+        candidates == NULL
+    ) {
+        free(visited);
+        free(candidates);
+
+        return 0;
+    }
+
+    size_t candidate_count = 1;
+
+    candidates[0] = entry_point;
+    visited[entry_point] = 1;
+
+    while (candidate_count > 0) {
+        size_t best_position = 0;
+
+        float best_score =
+            cosine_similarity(
+                query,
+                &graph->vectors[candidates[0]]
+            );
+
+        for (size_t i = 1; i < candidate_count; i++) {
+            float score =
+                cosine_similarity(
+                    query,
+                    &graph->vectors[candidates[i]]
+                );
+
+            if (score > best_score) {
+                best_position = i;
+                best_score = score;
+            }
+        }
+
+        size_t current =
+            candidates[best_position];
+
+        for (
+            size_t i = best_position + 1;
+            i < candidate_count;
+            i++
+        ) {
+            candidates[i - 1] = candidates[i];
+        }
+
+        candidate_count--;
+
+        const GraphNode *node =
+            &graph->nodes[current];
+
+        for (size_t i = 0; i < node->count; i++) {
+            size_t neighbor =
+                node->neighbors[i];
+
+            if (visited[neighbor]) {
+                continue;
+            }
+
+            visited[neighbor] = 1;
+
+            candidates[candidate_count] =
+                neighbor;
+
+            candidate_count++;
+        }
+    }
+
+    /*
+     * Build Top-K directly.
+     * Do not write more than k elements
+     * into the caller's results array.
+     */
+
+    size_t result_count = 0;
+
+    for (size_t i = 0; i < graph->size; i++) {
+        if (!visited[i]) {
+            continue;
+        }
+
+        float score_i =
+            cosine_similarity(
+                query,
+                &graph->vectors[i]
+            );
+
+        size_t position = result_count;
+
+        if (result_count < k) {
+            results[result_count] = i;
+            result_count++;
+        } else {
+            float worst_score =
+                cosine_similarity(
+                    query,
+                    &graph->vectors[results[k - 1]]
+                );
+
+            if (score_i <= worst_score) {
+                continue;
+            }
+
+            results[k - 1] = i;
+            position = k - 1;
+        }
+
+        while (position > 0) {
+            float current_score =
+                cosine_similarity(
+                    query,
+                    &graph->vectors[results[position]]
+                );
+
+            float previous_score =
+                cosine_similarity(
+                    query,
+                    &graph->vectors[results[position - 1]]
+                );
+
+            if (current_score <= previous_score) {
+                break;
+            }
+
+            size_t temp =
+                results[position];
+
+            results[position] =
+                results[position - 1];
+
+            results[position - 1] =
+                temp;
+
+            position--;
+        }
+    }
+
+    free(visited);
+    free(candidates);
+
+    return result_count;
+}
